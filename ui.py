@@ -77,6 +77,19 @@ class NetworkMonitorApp:
 
         self.update_network_gateway()
 
+        self.vlan_frame = tk.LabelFrame(master, text="VLAN Devices", font=("Arial", 12))
+        self.vlan_frame.pack(pady=10, fill="both", expand=True, padx=20)
+
+        self.vlan_scrollbar = tk.Scrollbar(self.vlan_frame)
+        self.vlan_listbox = tk.Listbox(self.vlan_frame, font=("Arial", 11), yscrollcommand=self.vlan_scrollbar.set)
+        self.vlan_scrollbar.config(command=self.vlan_listbox.yview)
+        self.vlan_scrollbar.pack(side="right", fill="y")
+        self.vlan_listbox.pack(side="left", fill="both", expand=True, padx=10, pady=5)
+
+        vlan_button = tk.Button(self.button_frame, text="🔍 Scan VLANs", command=self.scan_vlans, bg="#9C27B0", fg="white", font=("Arial", 12), padx=10, pady=5)
+        vlan_button.pack(side=tk.LEFT, padx=5)
+
+
     def load_icon(self, path):
         try:
             return tk.PhotoImage(file=path)
@@ -97,7 +110,32 @@ class NetworkMonitorApp:
             self.status_bar.config(text=f"Total Devices: {len(devices)}")
         t = Thread(target=task, daemon=True)
         t.start()
+    
+    def scan_vlans(self):
+        def task():
+            from config import VLAN_NETWORKS
+            results = scanner.scan_vlan_networks(VLAN_NETWORKS)
 
+            self.vlan_listbox.delete(0, tk.END)
+
+            if not results:
+                self.vlan_listbox.insert(tk.END, "❌ لم يتم العثور على أي جهاز في VLANs.")
+            else:
+                vlan_map = {}
+                for device in results:
+                    vlan_map.setdefault(device["vlan"], []).append(device)
+
+                for vlan, devices in vlan_map.items():
+                    self.vlan_listbox.insert(tk.END, f"🔸 {vlan} ({len(devices)} جهاز):")
+                    for dev in devices:
+                        line = f"  • {dev['ip']} | {dev['hostname']} | {dev['mac']} | {dev['status']}"
+                        self.vlan_listbox.insert(tk.END, line)
+                    self.vlan_listbox.insert(tk.END, "")  # فراغ بين VLANs
+
+            self.status_bar.config(text=f"VLAN Devices Found: {len(results)}")
+        Thread(target=task, daemon=True).start()
+
+    
     def open_config_popup(self):
         self.popup = tk.Toplevel(self.master)
         popup = self.popup

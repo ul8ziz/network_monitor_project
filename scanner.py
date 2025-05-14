@@ -1,10 +1,8 @@
-from ping3 import ping
 import subprocess
 import re
 import platform
-import subprocess
-import re
-import platform
+import nmap
+
 
 def is_device_alive(ip):
     try:
@@ -27,6 +25,7 @@ def is_device_alive(ip):
     except Exception:
         return {"alive": False}
 
+
 def get_mac_address(ip):
     try:
         arp_result = subprocess.run(["arp", "-a", ip], capture_output=True, text=True)
@@ -38,6 +37,7 @@ def get_mac_address(ip):
             return None
     except Exception:
         return None
+
 
 def discover_devices(network_ip, gateway_ip):
     discovered = []
@@ -72,7 +72,7 @@ def discover_devices(network_ip, gateway_ip):
                 mac_address = match.group(0).split()[1]
                 known_ips.add(ip)
 
-                device_type = "💻 Desktop"  # Default device type
+                device_type = "💻 Desktop"
                 if mac_address:
                     oui = mac_address[:8].upper()
                     if oui in oui_database:
@@ -87,7 +87,6 @@ def discover_devices(network_ip, gateway_ip):
     except Exception as e:
         print(f"Error discovering devices from ARP table: {e}")
 
-    # Ping the remaining IPs
     base_ip = '.'.join(network_ip.split('.')[:-1])
     for i in range(1, 255):
         ip = f"{base_ip}.{i}"
@@ -97,7 +96,7 @@ def discover_devices(network_ip, gateway_ip):
                                     stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
             if result.returncode == 0:
                 mac_address = get_mac_address(ip)
-                device_type = "💻 Desktop"  # Default device type
+                device_type = "💻 Desktop"
                 if mac_address:
                     oui = mac_address[:8].upper()
                     if oui in oui_database:
@@ -109,4 +108,32 @@ def discover_devices(network_ip, gateway_ip):
                     device_type = "🖨️ Printer"
                 discovered.append({"ip": ip, "type": device_type, "mac": mac_address})
 
+    return discovered
+
+
+
+def scan_vlan_networks(vlan_dict):
+    nm = nmap.PortScanner()
+    discovered = []
+
+    for vlan_name, subnet in vlan_dict.items():
+        print(f"\n🔍 فحص {vlan_name} - {subnet}")
+        try:
+            nm.scan(hosts=subnet, arguments='-sn')  # Ping scan فقط
+
+            for host in nm.all_hosts():
+                mac = nm[host]['addresses'].get('mac', 'N/A')
+                device = {
+                    'vlan': vlan_name,
+                    'ip': host,
+                    'status': nm[host].state(),
+                    'hostname': nm[host].hostname(),
+                    'mac': mac,
+                }
+                discovered.append(device)
+                print(f"[✔] {device}")  # طباعة النتيجة في الطرفية
+
+        except Exception as e:
+            print(f"❌ خطأ في فحص {subnet}: {e}")
+    
     return discovered
